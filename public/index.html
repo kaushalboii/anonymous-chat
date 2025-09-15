@@ -177,14 +177,25 @@
       messages.scrollTop = messages.scrollHeight;
     };
 
-    socket.on('connect', () => {
+    socket.on('waiting', () => {
+      status.textContent = 'Waiting for a partner...';
+      chat.style.display = 'none';
+    });
+
+    socket.on('paired', () => {
       status.style.display = 'none';
       chat.style.display = 'block';
+      messages.innerHTML = '';
       addMessage('Connected to a partner!', 'stranger');
     });
 
     socket.on('message', msg => addMessage(`<b>Stranger:</b> ${msg}`, 'stranger'));
     socket.on('image', base64 => addMessage(`<b>Stranger:</b><br><img src="${base64}" class="chat-img">`, 'stranger'));
+
+    socket.on('partner_left', () => {
+      alert('Your partner left. Refresh to find a new one.');
+      location.reload();
+    });
 
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter' && input.value.trim()) {
