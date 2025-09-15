@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Anonymous Chat</title>
-  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <style>
     :root {
       --bg: #f3f4f6;
@@ -162,7 +162,7 @@
   </div>
 
   <script>
-    const socket = io('https://anonymous-chat.onrender.com');
+    const socket = io('https://anonymous-chat.onrender.com', { transports: ['websocket'] });
     const status = document.getElementById('status');
     const chat = document.getElementById('chat');
     const messages = document.getElementById('messages');
@@ -177,31 +177,16 @@
       messages.scrollTop = messages.scrollHeight;
     };
 
-    socket.on('waiting', () => {
-      status.textContent = 'Waiting for a partner...';
-    });
-
-    socket.on('paired', () => {
+    socket.on('connect', () => {
       status.style.display = 'none';
       chat.style.display = 'block';
-      messages.innerHTML = '';
       addMessage('Connected to a partner!', 'stranger');
     });
 
-    socket.on('message', (msg) => {
-      addMessage(`<b>Stranger:</b> ${msg}`, 'stranger');
-    });
+    socket.on('message', msg => addMessage(`<b>Stranger:</b> ${msg}`, 'stranger'));
+    socket.on('image', base64 => addMessage(`<b>Stranger:</b><br><img src="${base64}" class="chat-img">`, 'stranger'));
 
-    socket.on('image', (base64) => {
-      addMessage(`<b>Stranger:</b><br><img src="${base64}" class="chat-img">`, 'stranger');
-    });
-
-    socket.on('partner_left', () => {
-      alert('Your partner left. Refresh to find a new one.');
-      location.reload();
-    });
-
-    input.addEventListener('keydown', (e) => {
+    input.addEventListener('keydown', e => {
       if (e.key === 'Enter' && input.value.trim()) {
         const msg = input.value.trim();
         addMessage(`<b>You:</b> ${msg}`, 'you');
