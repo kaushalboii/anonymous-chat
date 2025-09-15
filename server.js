@@ -1,14 +1,13 @@
+// server.js
 const express = require('express');
 const http = require('http');
-const socketIO = require('socket.io');
+const { Server } = require('socket.io');
 const fs = require('fs');
 const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIO(server, {
-  cors: { origin: '*' } // allow cross-origin if needed
-});
+const io = new Server(server);
 
 app.use(express.static('public'));
 
@@ -18,41 +17,38 @@ const imagesFolder = path.join(__dirname, 'shared_images');
 if (!fs.existsSync(imagesFolder)) fs.mkdirSync(imagesFolder);
 if (!fs.existsSync(imagesFile)) fs.writeFileSync(imagesFile, '[]');
 
-// Store waiting users
+// Queue for waiting users
 let waitingUser = null;
 
-// Track active pairs: { socketId: partnerSocketId }
-const pairs = {};
+// Map to store pairs
+const pairs = new Map();
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  // If there is no waiting user, set this user as waiting
-  if (!waitingUser) {
-    waitingUser = socket;
-    socket.emit('waiting');
-  } else {
-    // Pair current socket with waiting user
+  // Pairing logic
+  if (waitingUser) {
     const partner = waitingUser;
     waitingUser = null;
 
-    pairs[socket.id] = partner.id;
-    pairs[partner.id] = socket.id;
+    pairs.set(socket.id, partner);
+    pairs.set(partner.id, socket);
 
     socket.emit('paired');
     partner.emit('paired');
+  } else {
+    waitingUser = socket;
+    socket.emit('waiting');
   }
 
-  // Handle messages
+  // Message handler
   socket.on('message', (msg) => {
-    const partnerId = pairs[socket.id];
-    if (partnerId) io.to(partnerId).emit('message', msg);
+    const partner = pairs.get(socket.id);
+    if (partner) partner.emit('message', msg);
   });
 
-  // Handle images
+  // Image handler
   socket.on('image', (base64) => {
-    const partnerId = pairs[socket.id];
-
     // Save locally
     const filename = `image_${Date.now()}.png`;
     const filepath = path.join(imagesFolder, filename);
@@ -64,25 +60,29 @@ io.on('connection', (socket) => {
     images.push({ filename, timestamp: Date.now() });
     fs.writeFileSync(imagesFile, JSON.stringify(images, null, 2));
 
-    if (partnerId) io.to(partnerId).emit('image', base64);
+    // Send to partner
+    const partner = pairs.get(socket.id);
+    if (partner) partner.emit('image', base64);
   });
 
   // Handle disconnect
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
+    const partner = pairs.get(socket.id);
 
-    const partnerId = pairs[socket.id];
-    if (partnerId) {
-      io.to(partnerId).emit('partner_left');
-      delete pairs[partnerId];
+    if (partner) {
+      partner.emit('partner_left');
+      pairs.delete(partner.id);
+      waitingUser = partner;
+      partner.emit('waiting');
     }
 
-    if (waitingUser && waitingUser.id === socket.id) {
-      waitingUser = null;
-    }
-    delete pairs[socket.id];
+    pairs.delete(socket.id);
+
+    if (waitingUser === socket) waitingUser = null;
   });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(process.env.PORT || 3000, () => {
+  console.log('Server running...');
+});
