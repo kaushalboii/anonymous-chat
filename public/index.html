@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Anonymous Chat</title>
+  <title>Anonymous Chat – Chat with Strangers for Free</title>
+  <meta name="description" content="Anonymous Chat lets you chat with strangers for free. Send messages and images anonymously in real-time.">
+  <meta name="keywords" content="anonymous chat, chat with strangers, free chat, image chat, online chat">
+  <link rel="canonical" href="https://anonymous-chat.onrender.com" />
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <style>
     :root {
@@ -162,7 +165,9 @@
   </div>
 
   <script>
+    // Connect to your deployed server
     const socket = io('https://anonymous-chat.onrender.com', { transports: ['websocket'] });
+
     const status = document.getElementById('status');
     const chat = document.getElementById('chat');
     const messages = document.getElementById('messages');
@@ -177,6 +182,7 @@
       messages.scrollTop = messages.scrollHeight;
     };
 
+    // Show "Waiting for a partner" until paired
     socket.on('waiting', () => {
       status.textContent = 'Waiting for a partner...';
       chat.style.display = 'none';
@@ -189,14 +195,17 @@
       addMessage('Connected to a partner!', 'stranger');
     });
 
+    // Incoming messages and images
     socket.on('message', msg => addMessage(`<b>Stranger:</b> ${msg}`, 'stranger'));
     socket.on('image', base64 => addMessage(`<b>Stranger:</b><br><img src="${base64}" class="chat-img">`, 'stranger'));
 
+    // Partner leaves
     socket.on('partner_left', () => {
       alert('Your partner left. Refresh to find a new one.');
       location.reload();
     });
 
+    // Send message
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter' && input.value.trim()) {
         const msg = input.value.trim();
@@ -206,6 +215,7 @@
       }
     });
 
+    // Send image
     fileInput.addEventListener('change', () => {
       const file = fileInput.files[0];
       if (!file) return;
