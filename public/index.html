@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Anonymous Chat</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --card-bg: #ffffff;
+      --header-bg: #2563eb;
+      --header-text: #ffffff;
+      --border: #e5e7eb;
+      --bubble-you-bg: #2563eb;
+      --bubble-you-text: #ffffff;
+      --bubble-stranger-bg: #e5e7eb;
+      --bubble-stranger-text: #111827;
+      --text: #111827;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111827;
+        --card-bg: #1f2937;
+        --header-bg: #3b82f6;
+        --header-text: #ffffff;
+        --border: #374151;
+        --bubble-you-bg: #3b82f6;
+        --bubble-you-text: #ffffff;
+        --bubble-stranger-bg: #374151;
+        --bubble-stranger-text: #f9fafb;
+        --text: #f9fafb;
+      }
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .container {
+      background: var(--card-bg);
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      width: 400px;
+      max-width: 95%;
+      overflow: hidden;
+      transition: background 0.3s;
+    }
+
+    .header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 16px;
+      text-align: center;
+      font-size: 1.25rem;
+      font-weight: 600;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    #status {
+      text-align: center;
+      padding: 12px;
+      font-size: 0.95rem;
+      color: var(--text);
+      transition: color 0.3s;
+    }
+
+    #chat {
+      display: none;
+      padding: 16px;
+    }
+
+    #messages {
+      border: 1px solid var(--border);
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 12px;
+      height: 300px;
+      overflow-y: auto;
+      margin-bottom: 12px;
+      transition: background 0.3s, border 0.3s;
+    }
+
+    .message {
+      margin-bottom: 10px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      max-width: 80%;
+      word-wrap: break-word;
+      clear: both;
+    }
+
+    .you {
+      background: var(--bubble-you-bg);
+      color: var(--bubble-you-text);
+      margin-left: auto;
+      text-align: right;
+    }
+
+    .stranger {
+      background: var(--bubble-stranger-bg);
+      color: var(--bubble-stranger-text);
+      margin-right: auto;
+      text-align: left;
+    }
+
+    .inputs {
+      display: flex;
+      gap: 6px;
+    }
+
+    #input {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      background: var(--card-bg);
+      color: var(--text);
+      transition: background 0.3s, color 0.3s, border 0.3s;
+    }
+
+    #input:focus {
+      border-color: var(--header-bg);
+    }
+
+    #fileInput {
+      border: none;
+      background: transparent;
+      color: var(--text);
+    }
+
+    img.chat-img {
+      max-width: 150px;
+      border-radius: 8px;
+      display: block;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">Anonymous Chat</div>
+    <div id="status">Connecting...</div>
+
+    <div id="chat">
+      <div id="messages"></div>
+      <div class="inputs">
+        <input id="input" placeholder="Type a message..." autocomplete="off" />
+        <input type="file" id="fileInput" accept="image/*" />
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    const status = document.getElementById('status');
+    const chat = document.getElementById('chat');
+    const messages = document.getElementById('messages');
+    const input = document.getElementById('input');
+    const fileInput = document.getElementById('fileInput');
+
+    const addMessage = (text, from) => {
+      const div = document.createElement('div');
+      div.classList.add('message', from);
+      div.innerHTML = text;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    };
+
+    socket.on('waiting', () => {
+      status.textContent = 'Waiting for a partner...';
+    });
+
+    socket.on('paired', () => {
+      status.style.display = 'none';
+      chat.style.display = 'block';
+      messages.innerHTML = '';
+      addMessage('Connected to a partner!', 'stranger');
+    });
+
+    socket.on('message', (msg) => {
+      addMessage(`<b>Stranger:</b> ${msg}`, 'stranger');
+    });
+
+    socket.on('image', (base64) => {
+      addMessage(`<b>Stranger:</b><br><img src="${base64}" class="chat-img">`, 'stranger');
+    });
+
+    socket.on('partner_left', () => {
+      alert('Your partner left. Refresh to find a new one.');
+      location.reload();
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && input.value.trim()) {
+        const msg = input.value.trim();
+        addMessage(`<b>You:</b> ${msg}`, 'you');
+        socket.emit('message', msg);
+        input.value = '';
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result;
+        addMessage(`<b>You:</b><br><img src="${base64}" class="chat-img">`, 'you');
+        socket.emit('image', base64);
+      };
+      reader.readAsDataURL(file);
+      fileInput.value = '';
+    });
+  </script>
+</body>
+</html>
